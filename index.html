@@ -254,7 +254,7 @@
         tg.MainButton.textColor = '#ffffff';
 
         // true, только если страница открыта внутри Telegram
-        const inTelegram = !!(tg.initData && tg.initData.length > 0);
+        const inTelegram = !!(tg.platform && tg.platform !== 'unknown');
 
         // ================= НАСТРОЙКИ МАГАЗИНА =================
         const MAX_QTY = 10;          // максимум штук одной позиции в заказе
