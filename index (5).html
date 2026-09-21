@@ -1,0 +1,889 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>La Poste — Каталог</title>
+    <script src="https://telegram.org/js/telegram-web-app.js"></script>
+    <style>
+        :root { --brand: #1b24ae; }   /* фирменный синий: меняется в одном месте */
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
+            background-color: #ffffff;
+            color: #111111;
+            padding: 16px 16px 90px;
+            -webkit-tap-highlight-color: transparent;
+            max-width: 480px;
+            margin: 0 auto;
+        }
+
+        /* ===== Шапка магазина ===== */
+        .logo { height: 30px; display: block; }
+        .shop-name { font-size: 22px; font-weight: 700; letter-spacing: 0.3px; }
+        .shop-addr { font-size: 12px; color: #555; line-height: 1.4; margin-top: 4px; }
+        .shop-note {
+            font-size: 12px; color: var(--brand); background: #f0f0ff;
+            border-radius: 8px; padding: 8px 10px; margin: 10px 0 14px; line-height: 1.35;
+        }
+
+        /* ===== Категории ===== */
+        .sticky-top { position: sticky; top: 0; background: #ffffff; z-index: 10; padding-bottom: 6px; margin-bottom: 10px; }
+        .search {
+            width: 100%; border: 1px solid #e5e5e5; border-radius: 10px; background: #f7f7f8;
+            padding: 10px 12px; font: inherit; font-size: 14px; margin-bottom: 10px; outline: none;
+        }
+        .categories {
+            display: flex; gap: 8px; overflow-x: auto; scrollbar-width: none;
+        }
+        .categories::-webkit-scrollbar { display: none; }
+        .cat-btn {
+            padding: 8px 16px; border: 1px solid #e5e5e5; border-radius: 20px;
+            background: #ffffff; font-size: 13px; font-weight: 500;
+            white-space: nowrap; cursor: pointer; transition: all 0.2s ease; color: #444444;
+        }
+        .cat-btn.active { background: #1a1a1a; color: #ffffff; border-color: #1a1a1a; }
+
+        /* ===== Карточки товаров ===== */
+        .products-grid { display: grid; grid-template-columns: repeat(2, 1fr); gap: 12px; }
+        .product-card {
+            background: #ffffff; border: 1px solid #f0f0f0; border-radius: 12px; padding: 10px;
+            display: flex; flex-direction: column; justify-content: space-between;
+            box-shadow: 0 2px 6px rgba(0,0,0,0.02);
+        }
+        .img-wrapper {
+            width: 100%; aspect-ratio: 8 / 7; border-radius: 8px; overflow: hidden;
+            background-color: #f4f2ef; margin-bottom: 8px;
+            display: flex; align-items: center; justify-content: center; position: relative;
+        }
+        .img-wrapper::after { content: '🥐'; font-size: 40px; position: absolute; opacity: 0.2; z-index: 0; }
+        .product-img {
+            width: 100%; height: 100%; object-fit: cover;   /* фото заполняет рамку целиком */
+            position: relative; z-index: 1; transition: opacity 0.2s;
+        }
+        .product-title { font-weight: 600; font-size: 13px; margin-bottom: 4px; line-height: 1.25; color: #111; }
+        .product-desc {
+            font-size: 11px; color: #777777; margin-bottom: 10px; line-height: 1.3;
+            display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden;
+        }
+        .product-footer {
+            display: flex; justify-content: space-between; align-items: center;
+            margin-top: auto; padding-top: 4px; min-height: 36px;
+        }
+        .price-group { display: flex; flex-direction: column; }
+        .product-price { font-weight: 700; font-size: 14px; }
+        .product-weight { font-size: 10px; color: #999999; }
+        .action-container { width: 80px; height: 32px; display: flex; justify-content: flex-end; align-items: center; }
+
+        .add-btn {
+            background: var(--brand); color: #ffffff; border: none; width: 32px; height: 32px;
+            border-radius: 8px; font-size: 18px; font-weight: bold; cursor: pointer;
+            display: flex; align-items: center; justify-content: center; transition: transform 0.1s;
+        }
+        .add-btn:active { transform: scale(0.92); }
+        .counter {
+            display: flex; align-items: center; justify-content: space-between;
+            background: #f5f5f7; border-radius: 8px; width: 80px; height: 32px; padding: 0 2px;
+        }
+        .counter button {
+            border: none; background: none; font-size: 16px; font-weight: bold;
+            width: 26px; height: 26px; cursor: pointer; color: #1a1a1a;
+            display: flex; align-items: center; justify-content: center;
+        }
+        .counter button:disabled { opacity: 0.25; cursor: default; }
+        .counter span { font-size: 12px; font-weight: 600; text-align: center; flex-grow: 1; }
+
+        /* Товар в стоп-листе */
+        .soldout-label { font-size: 11px; color: #999; text-align: right; }
+        .product-card.soldout .card-top { opacity: 0.45; }
+
+        /* ===== Контакты ===== */
+        .contact-box {
+            margin-top: 24px; padding: 12px; background: #f5f5f7; border-radius: 10px;
+            font-size: 12px; color: #555; line-height: 1.6;
+        }
+        .contact-box a { color: var(--brand); text-decoration: none; }
+
+        /* ===== Экран корзины ===== */
+        .view-title { font-size: 20px; font-weight: 700; margin-bottom: 8px; }
+        .cart-row {
+            display: flex; justify-content: space-between; align-items: center;
+            gap: 10px; padding: 10px 0; border-bottom: 1px solid #f0f0f0;
+        }
+        .cart-info { flex: 1; min-width: 0; }
+        .cart-name { font-size: 14px; font-weight: 600; line-height: 1.25; }
+        .cart-sub { font-size: 12px; color: #888; margin-top: 2px; }
+        .section-title { font-size: 14px; font-weight: 600; margin: 18px 0 8px; }
+        .date-chips { display: flex; gap: 8px; overflow-x: auto; padding-bottom: 4px; scrollbar-width: none; }
+        .date-chips::-webkit-scrollbar { display: none; }
+        .date-chip {
+            flex: 0 0 auto; min-width: 68px; padding: 8px 10px; border: 1px solid #e5e5e5;
+            border-radius: 10px; text-align: center; background: #fff; cursor: pointer;
+            font-size: 12px; color: #444;
+        }
+        .date-chip b { display: block; font-size: 15px; color: #111; margin: 2px 0; }
+        .date-chip small { display: block; font-size: 10px; color: #999; min-height: 12px; }
+        .date-chip.active { background: #1a1a1a; border-color: #1a1a1a; color: #fff; }
+        .date-chip.active b, .date-chip.active small { color: #fff; }
+        input[type=text], input[type=tel], textarea {
+            width: 100%; border: 1px solid #e5e5e5; border-radius: 10px; padding: 10px;
+            font: inherit; font-size: 14px; resize: none; outline: none;
+        }
+        textarea { height: 72px; }
+        input[type=text], input[type=tel] { margin-bottom: 8px; }
+        .invalid { border-color: #d33 !important; }
+        .consent { display: flex; gap: 8px; align-items: flex-start; font-size: 12px; color: #555; line-height: 1.35; margin-top: 16px; }
+        .consent input { margin-top: 2px; width: 18px; height: 18px; flex: 0 0 auto; }
+        .consent.invalid { color: #d33; }
+        .total-row { display: flex; justify-content: space-between; font-size: 16px; font-weight: 700; margin-top: 16px; }
+        .hint { font-size: 11px; color: #888; line-height: 1.35; margin-top: 6px; }
+
+        /* ===== Кнопки-заменители: видны только в обычном браузере, не в Telegram ===== */
+        .web-main {
+            display: none; position: fixed; left: 0; right: 0; bottom: 0; z-index: 50;
+            padding: 12px 16px; background: #fff; box-shadow: 0 -2px 10px rgba(0,0,0,0.08);
+        }
+        .web-main button {
+            display: block; width: 100%; max-width: 448px; margin: 0 auto; height: 48px;
+            border: none; border-radius: 10px; background: #1a1a1a; color: #fff;
+            font-size: 15px; font-weight: 600; cursor: pointer;
+        }
+        .web-back { display: none; background: none; border: none; color: var(--brand); font-size: 14px; cursor: pointer; margin-bottom: 10px; }
+
+        /* ===== Окно товара (выезжает снизу) ===== */
+        .modal-overlay {
+            position: fixed; inset: 0; background: rgba(0,0,0,0.45);
+            display: none; align-items: flex-end; justify-content: center; z-index: 100;
+        }
+        .modal-overlay.open { display: flex; }
+        .modal {
+            background: #fff; width: 100%; max-width: 480px; max-height: 90vh;
+            overflow-y: auto; border-radius: 16px 16px 0 0; padding: 16px;
+        }
+        .modal-img { width: 100%; aspect-ratio: 8 / 7; object-fit: cover; background: #f4f2ef; border-radius: 12px; }
+        .modal-title { font-size: 20px; font-weight: 700; margin: 12px 0 2px; }
+        .modal-weight { font-size: 13px; color: #999; margin-bottom: 10px; }
+        .modal-desc { font-size: 14px; line-height: 1.4; color: #333; white-space: pre-line; }
+        .modal h4 { font-size: 14px; margin: 16px 0 6px; }
+        .modal-text { font-size: 13px; line-height: 1.4; color: #555; }
+        .nutri { display: grid; grid-template-columns: repeat(4, 1fr); background: #f5f5f7; border-radius: 8px; padding: 8px 4px; text-align: center; }
+        .nutri span { display: block; font-size: 10px; color: #888; }
+        .nutri b { font-size: 13px; }
+        .modal-footer { position: sticky; bottom: 0; background: #fff; padding-top: 12px; margin-top: 12px; }
+        .modal-add {
+            width: 100%; height: 48px; background: var(--brand); color: #fff; border: none;
+            border-radius: 10px; font-size: 16px; font-weight: 600; cursor: pointer;
+        }
+        .modal-add:disabled { background: #cfcfcf; cursor: default; }
+        .modal-footer .counter { width: 100%; height: 48px; }
+        .modal-footer .counter button { width: 48px; height: 44px; font-size: 20px; }
+        .modal-footer .counter span { font-size: 16px; }
+    </style>
+</head>
+<body>
+
+    <!-- ================= ЭКРАН 1: КАТАЛОГ ================= -->
+    <div id="catalogView">
+        <img class="logo" src="https://laposte.ru/wp-content/uploads/2024/11/logo.svg" alt="La Poste"
+             onerror="this.style.display='none'; document.getElementById('shopName').style.display='block';">
+        <div class="shop-name" id="shopName" style="display:none">La Poste</div>
+        <div class="shop-addr">
+            📍 Самовывоз: ул. Нижние Мнёвники, 9, Москва<br>
+            ЖК Остров, квартал 1, со стороны Проектируемого проезда № 1074, этаж 1
+        </div>
+        <div class="shop-note">
+            Заказ, оформленный до 18:00 (МСК), выдаём завтра, после 18:00 — послезавтра.
+            Можно выбрать и любой другой день.
+        </div>
+
+        <div class="sticky-top">
+            <input type="search" class="search" id="searchInput" placeholder="Поиск по названию" oninput="onSearch(this.value)">
+            <div class="categories" id="categoryContainer"></div>
+        </div>
+        <div class="products-grid" id="productsContainer"></div>
+        <div class="contact-box"></div>
+    </div>
+
+    <!-- ================= ЭКРАН 2: КОРЗИНА ================= -->
+    <div id="cartView" style="display:none">
+        <button class="web-back" id="webBack" onclick="onBack()">← Назад в каталог</button>
+        <div class="view-title">Ваш заказ</div>
+        <div id="cartRows"></div>
+
+        <div class="section-title">Дата выдачи</div>
+        <div class="date-chips" id="dateChips"></div>
+        <div class="hint" id="datesNote"></div>
+        <div class="hint">Самовывоз: ул. Нижние Мнёвники, 9, ЖК Остров, квартал 1, этаж 1.</div>
+
+        <div class="section-title">Ваши данные</div>
+        <input type="text" id="custName" placeholder="Имя" maxlength="60" autocomplete="name">
+        <input type="tel" id="custPhone" placeholder="Телефон, например +7 999 123-45-67" maxlength="25" autocomplete="tel">
+
+        <div class="section-title">Комментарий к заказу</div>
+        <textarea id="comment" maxlength="300" placeholder="Необязательно"></textarea>
+
+        <label class="consent" id="consentBox">
+            <input type="checkbox" id="consent">
+            <span id="consentText"></span>
+        </label>
+
+        <div class="total-row"><span>Итого</span><span id="cartTotal">0 ₽</span></div>
+        <div class="hint">Итоговая сумма и оплата подтверждаются в чате с ботом после оформления.</div>
+
+        <div class="contact-box"></div>
+    </div>
+
+    <!-- ================= ОКНО ТОВАРА ================= -->
+    <div class="modal-overlay" id="modalOverlay" onclick="if (event.target === this) closeProduct()">
+        <div class="modal">
+            <div id="modalContent"></div>
+            <div class="modal-footer" id="modalAction"></div>
+        </div>
+    </div>
+
+    <!-- Копия кнопки Telegram для проверки в браузере (в Telegram скрыта) -->
+    <div class="web-main" id="webMain"><button id="webMainBtn" onclick="mainAction()"></button></div>
+
+    <script>
+        let tg = window.Telegram.WebApp;
+        tg.expand();
+        tg.ready();
+
+        tg.MainButton.color = '#1a1a1a';
+        tg.MainButton.textColor = '#ffffff';
+
+        // true, только если страница открыта внутри Telegram
+        const inTelegram = !!(tg.initData && tg.initData.length > 0);
+
+        // ================= НАСТРОЙКИ МАГАЗИНА =================
+        const MAX_QTY = 10;          // максимум штук одной позиции в заказе
+        const DAYS_AHEAD = 14;       // на сколько дней вперёд можно заказать
+        const CUTOFF_HOUR = 18;      // до 18:00 (МСК) — выдача завтра, после — послезавтра
+
+        // Стоп-лист: сюда записываем id товаров, которых нет в наличии.
+        // Пример: const STOP_LIST = ['b1', 's2'];
+        const STOP_LIST = [];
+
+        // Закрытые даты выдачи.
+        // Каждый год: с 30 декабря по 7 января (формат ММ-ДД). Переход через Новый год учтён.
+        const CLOSED_EVERY_YEAR = [{ from: '12-30', to: '01-07' }];
+        // Отдельные закрытые даты (формат ГГГГ-ММ-ДД), например: ['2026-11-04']
+        const CLOSED_DATES = [];
+
+        // Условия заказа (показываются при оформлении, клиент ставит галочку).
+        // ЧЕРНОВИК: перед запуском согласуйте формулировку (см. вопрос про юридическую часть).
+        const TERMS_TEXT = 'Заказ хранится до закрытия точки в день выдачи. Не забранный вовремя заказ возврату не подлежит. Отменить заказ можно до 18:00 накануне даты выдачи.';
+
+        // Ссылка на опубликованный лист «Каталог» из Google Таблицы (формат CSV).
+        // Пока пусто — используется встроенный список товаров ниже.
+        const CATALOG_CSV_URL = '';
+
+        // Контакты для вопросов по заказу
+        const CONTACT_TG = 'la_poste_ostrov1';
+        const CONTACT_PHONE = '+7 995 159 89 48';
+        const CONTACT_PHONE_HREF = '+79951598948';
+        // ======================================================
+
+        let products = [
+            // ХЛЕБ
+            { id: "b0", cat: "Хлеб", name: "Багет «Традисьон»", desc: "Багет, который ты ищешь.\nТрадиционный французский багет со звонкой корочкой и нежным мякишем.", weight: "250г", price: 350, img: "https://laposte.ru/wp-content/uploads/2026/02/69e63bbe-d2b7-47ea-b7c3-d537b58e2a2b-9.png", composition: "Мука пшеничная в/с и 1с, вода, соль, дрожжи хлебопекарные прессованные, солод белый (неферментированный ржаной).", nutrition: {"kcal": 271, "protein": 8, "fat": 0, "carbs": 58} },
+            { id: "b1", cat: "Хлеб", name: "Багет «Твист»", desc: "хлеб Твист с очень мягкой коркой и нежным мякишем.", weight: "340г", price: 350, img: "https://laposte.ru/wp-content/uploads/2026/02/4l1a3172-kopiya-scaled.jpg", composition: "Мука в/с пшеничная, вода, соль, прессованные дрожжи. Длинная ферментация 24-28 часов.", nutrition: {"kcal": 272, "protein": 8, "fat": 0, "carbs": 58} },
+            { id: "b2", cat: "Хлеб", name: "Багет «Флют кедровый»", desc: "Пшеничный хлеб из багетного теста с кедровыми орешками, максимум корки и сливочно-хвойного послевкусия.", weight: "200г", price: 550, img: "https://laposte.ru/wp-content/uploads/2026/02/a24460ed-928c-44dc-a5cc-73bc8821786c-9-scaled.jpg", composition: "Тесто дрожжевое длительной холодной ферментации (мука пшеничная в/с, мука пшеничная 1/с, вода, дрожжи свежие прессованные, соль, солод белый (не ферментированы ржаной), орех кедровый.", nutrition: {"kcal": 416, "protein": 12, "fat": 9, "carbs": 69} },
+            { id: "b3", cat: "Хлеб", name: "Пух пшеничный сдобный", desc: "Пшеничный сдобный хлеб с легкой волокнистой структурой мякиша и тонкой корочкой. Нежный как пух.", weight: "360г", price: 450, img: "https://laposte.ru/wp-content/uploads/2026/02/b38643f9-024c-4342-9907-36a8ec9c699b-9.png", composition: "Мука пшеничная в/с, сахар, соль, дрожжи прессованные, молоко коровье 3,5% пастеризованное, яичный желток пастеризованный,, масло сладко-сливочное несоленое 82%, меланж пастеризованный.", nutrition: {"kcal": 228, "protein": 6, "fat": 4, "carbs": 39} },
+            { id: "b4", cat: "Хлеб", name: "Гречка", desc: "Пшенично-гречишный хлеб на закваске с гречневой крупой.", weight: "650г", price: 590, img: "https://laposte.ru/wp-content/uploads/2026/02/0d51c100-4464-4826-864e-715b9d5b483c-12.jpg", composition: "Мука пшеничная в/с, 1с, пшеничная ц/з, мука гречневая ц/з, мука ржаная ц/з, вода, крупа гречневая, соль.", nutrition: {"kcal": 216, "protein": 6, "fat": 0, "carbs": 44} },
+            { id: "b5", cat: "Хлеб", name: "Хлеб «Кампань»", desc: "Пшенично-ржаной хлеб на закваске с деликатной кислинкой.", weight: "640г", price: 550, img: "https://laposte.ru/wp-content/uploads/2026/02/ba08f105-ab2d-419a-9934-b8c4dc4063cd-9.png", composition: "Мука пшеничная в/с, 1с, мука ржаная ц/з, мука пшеничная ц/з, вода, соль.", nutrition: {"kcal": 186, "protein": 5, "fat": 0, "carbs": 39} },
+            { id: "b6", cat: "Хлеб", name: "Безглютен чернослив", desc: "Воздушная текстура и деликатная кислинка безглютенового хлеба с черносливом и маком.\n*Производится на общем производстве и может содержать следы глютена.", weight: "400г", price: 780, img: "https://laposte.ru/wp-content/uploads/2026/02/4l1a3179-kopiya-2-scaled.jpg", composition: "Рисовая закваска, шелуха подорожника (псиллиум), мука пшенная, мука рисовая, кукурузный крахмал, чернослив, мак, соль.", nutrition: {"kcal": 243, "protein": 4, "fat": 2, "carbs": 50} },
+            { id: "b7", cat: "Хлеб", name: "Каша", desc: "Пшенично-ржаной хлеб, с добавлением ржаной ц/з муки, овсяных хлопьев, кукурузной крупки и семян льна. Влажнее и ароматнее Кампан'я, за счёт ржаной цз муки.", weight: "650г", price: 550, img: "https://laposte.ru/wp-content/uploads/2026/02/a7befef1-623c-4f59-b793-02fb80f24f6c-12-scaled.jpg", composition: "Мука пшеничная в/с, мука пшеничная 1/с, мука ржаная цельнозерновая, закваска пшеничная (мука пшеничная в/с, мука пшеничная цельнозерновая, вода фильтрованная), вода фильтрованная, хлопья овсяные обжаренные, семена льна коричневого обжаренные, дробленая кукурузная крупка обжаренная, соль, белый солод", nutrition: {"kcal": 220, "protein": 6.5, "fat": 1.5, "carbs": 45} },
+
+            // ГАСТРОНОМИЯ
+            { id: "g2", cat: "Гастрономия", name: "Салат с индейкой, киноа и соусом цезарь", desc: "Нежные слайсы индейки, рассыпчатое киноа с ореховым привкусом, соус цезарь на желтке с печёным чесноком, соевым соусом и вустером, стружка сыра Грюйер и яйцо с кремовой серединкой.", weight: "260г", price: 890, img: "https://laposte.ru/wp-content/uploads/2026/05/8aeb98d0-2621-4d48-b22f-342b77a0d003-scaled.jpg", composition: "маринованная индейка (индейка, перец чёрный, можжевельник, орегано, базилик, тимьян, лук сушеный, чеснок сушеный, лавровый лист, тростниковый сахар, соль), соус цезарь (масло подсолнечное, яйцо куриное, майонез (масло растительное, яйцо куриное, уксус, соль, горчица), сметана, горчица зернистая сладкая, кетчуп томатный, лук зелёный, соус ворчестер (солодовый уксус (из ячменя), натуральный уксус, патока, сахар, соль, анчоусы, экстракт тамаринда, лук, чеснок, специи, ароматизаторы), мёд цветочный, масло оливковое, чеснок печёный, соус соевый, сок лимонный, цедра лимона), индейка сувид, киноа варёный (киноа, вода, соль), помидоры черри, салат Романо, капуста краснокочанная, морковь, яйцо куриное, сыр Грюер.", nutrition: {"kcal": 183, "protein": 8, "fat": 12, "carbs": 9} },
+            { id: "g3", cat: "Гастрономия", name: "Салат с креветками, булгуром и соусом манго", desc: "Отварные креветки с насыщенным морским вкусом, рассыпчатый булгур, пропитанный тёплыми нотами куркумы. Яркий соус из свежего манго и сладкого чили с деликатной остротой. Хрустящие листья романо, краснокочанная капуста, морковь и черри и ломтик лимона позволяет каждому настроить вкус по-своему.", weight: "245г", price: 890, img: "https://laposte.ru/wp-content/uploads/2026/05/f62a13c8-cc5a-48c9-bc99-474661ec57fc-scaled.jpg", composition: "помидоры черри, булгур варёный (булгур, вода, куркума, соль), соус манго (пюре манго, горчица дижонская, горчица зернистая, мёд, сок лимона, вода, соевый соус, растительное масло, лимонный сок), салат Романо, креветки отварные (креветки, соевый соус, цедра лимона, растительное масло), лимон свежий, капуста краснокочанная, морковь.", nutrition: {"kcal": 167, "protein": 6, "fat": 7, "carbs": 18} },
+            { id: "g4", cat: "Гастрономия", name: "Пирог с уткой", desc: "Рубленая утка с помидорами и паприкой на подушке из запеченного картофеля, инжирный соус и рассыпчатое тесто.", weight: "650г", price: 1900, img: "https://laposte.ru/wp-content/uploads/2026/02/089c6159-b3dd-49e6-8ddf-0c964802b4b1-scaled.jpg", composition: "Тесто рубленое песочное (мука пшеничная в/с, масло сладко-сливочное 82%, вода, соль), картофель печеный на подушке из соли (картофель, соль, сыр творожный сливочный, сливки пастеризованные 33%, сметана, петрушка, укроп, чеснок, масло оливковое), карамелизованный лук (морская соль, сахар тростниковый, вода, коньяк), соус инжирный (конфитюр из инжира, масло оливковое, масло растительное, соус соевый), томатный соус (томаты пилати, паприка копченая, кетчуп, малиновый кули (малина с/м, сахар, вода)), фарш из утки.", nutrition: {"kcal": 230, "protein": 7, "fat": 13, "carbs": 19} },
+            { id: "g5", cat: "Гастрономия", name: "Пирог курник с блинами", desc: "Курник — традиционный русский пирог с мясом, грибами и блинами, уложенными слоями.", weight: "700г", price: 2500, img: "https://laposte.ru/wp-content/uploads/2026/07/b38c9c1d-58eb-4a4a-a931-14075a5f07ec-scaled.jpg", composition: "тесто рубленое (мука пшеничная в/с, масло сливочное сладко‑сливочное несолёное, вода питьевая, соль поваренная пищевая), блины (мука пшеничная в/с, молоко питьевое, меланж яичный, масло растительное, сахар, соль), куриная начинка (грудка куриная, соус сладкий чили, масло кунжутное, соль поваренная пищевая), грибная начинка (лук репчатый, шампиньоны свежие, масло растительное, сметана, укроп свежий, соль поваренная пищевая, перец чёрный молотый).", nutrition: {"kcal": 212, "protein": 8, "fat": 9, "carbs": 22} },
+            { id: "g6", cat: "Гастрономия", name: "Панье с пастрами", desc: "Тарталетка на песочной основе, пастрами из говядины, румяная сырная корочка.", weight: "90г", price: 650, img: "https://laposte.ru/wp-content/uploads/2026/07/dsc_3692-scaled.jpg", composition: "Тесто рубленое песочное (мука пшеничная в/с, масло сладко-сливочное несоленое 84%, вода, соль), сыр моцарелла, сыр чеддер, пастрами из говядины, кастард (яичный меланж пастеризованный, сливки 33% пастеризованные, сыр сливочный творожный, соль), прованские травы.", nutrition: {"kcal": 251, "protein": 11, "fat": 17, "carbs": 12} },
+            { id: "g7", cat: "Гастрономия", name: "Киш «Панье с индейкой и грюйером»", desc: "Рассыпчатая песочная основа, сочная индейка су‑вид, сыр грюйер, карамелизованный лук конфи и сливочный кастард с ягодным акцентом малинового кули.", weight: "90г", price: 650, img: "https://laposte.ru/wp-content/uploads/woocommerce-placeholder-600x600.png", composition: "тесто рубленое песочное (мука пшеничная в/с, масло сладко-сливочное несоленое 84%, вода, соль), индейка су-вид, Грюйер, карамелизованный лук конфи, кастард сливочный (яичный меланж пастеризованный, сливки 33% пастеризованные, сыр сливочный творожный), помидоры черри, соус малиновый кули (сахар, малина с/м).", nutrition: {"kcal": 272, "protein": 11, "fat": 18, "carbs": 15} },
+            { id: "g8", cat: "Гастрономия", name: "Киш «Тарт Рататуй»", desc: "Хрустящая постная тарталетка, внутри — тёплая овощная начинка «рататуй» с цукини, баклажанами и томатами, сверху — насыщенный томатный соус и пряные травы.", weight: "110г", price: 600, img: "https://laposte.ru/wp-content/uploads/2026/02/b9673c4e-405f-4ff8-930f-0c53fd50bfdb.jpg", composition: "постное тесто для тарталетки (пшеничная мука, миндальная мука, вода, соль, оливковое масло), овощная начинка «Рататуй» (цукини, баклажаны, томаты, томатный соус (томаты в собственном соку, специя паприка/копчёная паприка, кетчуп томатный, соус малиновый, соль, чеснок печёный, белый молотый перец, сахар песок, базилик, оливковое масло., чеснок, базилик, паприка, растительное масло, соль, перец).", nutrition: {"kcal": 94, "protein": 2, "fat": 3, "carbs": 13} },
+            { id: "g9", cat: "Гастрономия", name: "Киш «Лорен» с лососем", desc: "Хрупкая песочная основа, нежный лосось, брокколи и румяная сырная корочка.", weight: "200г", price: 950, img: "https://laposte.ru/wp-content/uploads/2026/02/a39411a5-30d1-42b1-9ddb-196b9eed64bb-9-scaled.jpg", composition: "Тесто рубленое песочное (мука пшеничная в/с, масло сладко-сливочное несоленое м.д.ж.82%, вода, соль), лосось в соевом соусе (соевый соус, укроп, сахар тростниковый, соль), брокколи бланшированные (морская соль, вода), сыр пармезан, кастард (яичный меланж пастеризованный, сливки коровьи пастеризованные м.д.ж. 33%, сыр сливочный творожный Cremette м.д.ж. 65%, соль).", nutrition: {"kcal": 340, "protein": 10, "fat": 20, "carbs": 29} },
+            { id: "g10", cat: "Гастрономия", name: "Киш с копченой индейкой и сыром чеддер", desc: "Хрупкая песочная основа, сочная копченая индейка, томаты черри и румяная сырная корочка.", weight: "190г", price: 1050, img: "https://laposte.ru/wp-content/uploads/2026/02/4c50532b-985f-44ed-99bb-1509f49620fc-12-scaled.jpg", composition: "Тесто рубленое песочное (мука пшеничная в/с, масло сладко-сливочное несоленое м.д.ж.82%, вода, соль), пастрами из подкопчёной индейки, томаты черри, кастард (яичный меланж пастеризованный, сливки коровьи пастеризованные м.д.ж. 33%, сыр сливочный творожный Cremette м.д.ж. 65%, соль), чеддер (полутвердый коровий сыр).", nutrition: {"kcal": 276, "protein": 8, "fat": 17, "carbs": 20} },
+            { id: "g11", cat: "Гастрономия", name: "Сэндвич «Крок-мен» с пастрами", desc: "Сэндвич с пастрами из говядины, маринованными огурчиками, сыром и нежным коктейльным соусом на хрустящем хлебе.\nНаш сэндвич хранится в холодильнике, что может сделать хлеб немного плотнее.\nЧтобы восстановить мягкость хлеба и полностью раскрыть вкус начинки рекомендуем разогреть сэндвич в духовом шкафу, гриле или на сухой сковородке.", weight: "180г", price: 650, img: "https://laposte.ru/wp-content/uploads/2026/02/95771865-4bfc-4e92-b44e-ddc0672f9a51-9.jpg", composition: "Хлеб Каша/Кампань, пастрами из говядины, маринованные огурцы, сыр Чеддер, коктейльный соус (майонез, сметана, зеленый лук, соус Ворчестер, кетчуп, горчица зернистая)", nutrition: {"kcal": 200, "protein": 9, "fat": 10, "carbs": 15} },
+            { id: "g12", cat: "Гастрономия", name: "Сырники с собой", desc: "Маленькие творожные солнышки, сотканные из нежности творога, уверенности муки и непоколебимости яиц. Обильно обмакните в сметану и вы не сможете устоять перед их обаянием.", weight: "250г", price: 760, img: "https://laposte.ru/wp-content/uploads/2026/02/eb520553-6806-484b-8fb6-81cc6fdfef7f-12-scaled.jpg", composition: "Творог 9%, яйцо, изюм джамбо в роме, вода, сахарный песок, сахарная пудра, мука пшеничная в/с, масло подсолнечное, соусник со сметаной.", nutrition: {"kcal": 205, "protein": 12, "fat": 15, "carbs": 2} },
+            { id: "g13", cat: "Гастрономия", name: "Масло соленое", desc: "Масло сливочное взбитое, с гималайской розовой солью.\nВ упаковке 2шт.", weight: "120г", price: 870, img: "https://laposte.ru/wp-content/uploads/2026/02/fd24a197-511b-4d8c-83da-64cbc54ae36d-12-scaled.jpg", composition: "Масло сладко-сливочное м.д.ж. 82%, сыр сливочный творожный м.д.ж. не менее 65% (молоко коровье нормализованное пастеризованное, сливки пастеризованные, соль пищевая, бактериальная закваска мезофильных молочнокислых микроорганизмов, молокосвертывающий ферментный препарат микробного происхождения, стабилизаторы (камедь рожкового дерева, ксантановая камедь, каррагинан)), соль розовая гималайская пищевая каменная.", nutrition: {"kcal": 726, "protein": 0, "fat": 79, "carbs": 0} },
+            { id: "g14", cat: "Гастрономия", name: "Масло трюфельное", desc: "Насыщенный и яркий вкус черного трюфеля в масле, взбитом с солью и сливочным сыром.", weight: "120г", price: 870, img: "https://laposte.ru/wp-content/uploads/2026/02/2e5a1aea-b495-43cd-9bf5-25dd721abbb3-12-scaled.jpg", composition: "Масло сливочное 82%, паста из черного трюфеля, сливочный сыр творожный м.д.ж. не менее 65% (молоко коровье нормализованное пастеризованное, сливки пастеризованные, соль пищевая, бактериальная закваска мезофильных молочнокислых микроорганизмов, молокосвертывающий ферментный препарат микробного происхождения, стабилизаторы (камедь рожкового дерева, ксантановая камедь, каррагинан)), соль.", nutrition: {"kcal": 702, "protein": 1, "fat": 77, "carbs": 0} },
+
+            // СЛОЙКА
+            { id: "s1", cat: "Слойка", name: "Круассан фисташковый", desc: "Распишитесь, вам булочка! Фисташковый круассан от кафе Brioche. Сливочный и щедрый, как и сам гостеприимный Ростов-на-Дону. Внутри бархатный фисташковый крем, а на золотистой корочке - белый шоколад с россыпью дроблёных фисташек.", weight: "110г", price: 750, img: "https://laposte.ru/wp-content/uploads/2026/09/654713e9-48ca-47a9-a507-9250bdcc0442.png", composition: "тесто слоеное (мука пшеничная в/с, дрожжи прессованные, тримолин, соль, сахар, вода фильтрованная, масло сладко-сливочноенесоденое 82,5%), фисташковый крем (молоко коровье пастеризованное м.д.ж. 3,5%, сахар, желток куриный пастеризованный, кукурузный крахмал, фисташковая паста из изумрудной фисташки (Иран)), шоколад белый бельгийский 33%, масло виноградной косточки, фисташка изумрудная рубленая.", nutrition: {"kcal": 281, "protein": 6, "fat": 16, "carbs": 27} },
+            { id: "s2", cat: "Слойка", name: "Круассан миндальный", desc: "Наш классический круассан, вымоченный в ромовом сиропе и запеченный с миндальным кремом.", weight: "110г", price: 520, img: "https://laposte.ru/wp-content/uploads/2026/08/67898232-5b5b-438d-b51d-635b41811e0b.jpg", composition: "Мука пшеничная в/с, вода питьевая, сливочное масло, сахар, соль, инвертный сахар, прессованные дрожжи, миндальный крем (мука миндальная тонкой очистки, яйцо, сахар, сливочное масло, темный ром), миндальные лепестки, сахарная пудра.", nutrition: {"kcal": 377, "protein": 7, "fat": 20, "carbs": 41} },
+            { id: "s3", cat: "Слойка", name: "Круассан земляничный с лаймом", desc: "Круассан с контрастной кремовой начинкой из белого бельгийского шоколада со сливками, лаймом и земляничным компоте — всё — в ожидании возвращения последних теплых дней.", weight: "155г", price: 900, img: "https://laposte.ru/wp-content/uploads/2026/09/0ec56e96-66ed-4fc3-a26a-e187fc688e0c.png", composition: "тесто слоеное (мука пшеничная в/с, дрожжи прессованные, тримолин, соль, сахар, вода фильтрованная, масло сладко-сливочноенесоденое 82,5%), компоте земляничное (земляника, сахар, пектин NH), лаймовый ганаш (шоколад белый бельгийский zephyr, сливки коровьи ультрапастеризованные м.д.ж. 33%, желатин говяжий халяль, лаймовая цедра), земляничный глейз с розовой водой (земляника, вода фильтрованная, сахар, лимонный сок, розовая вода), нейтральный гель (вода фильтрованная, сахар, пектин NH, сироп глюкозы, лимонная кислота), земляника сублимированная.", nutrition: {"kcal": 224, "protein": 2, "fat": 9, "carbs": 32} },
+            { id: "s4", cat: "Слойка", name: "Круассан классический", desc: "Классический круассан – легкий, слоистый, воздушный.", weight: "55г", price: 270, img: "https://laposte.ru/wp-content/uploads/2026/02/0f3a0b50-3131-4936-8e8d-ec4d4fbbcbfd-16.jpg", composition: "Мука пшеничная в/с, вода питьевая, масло кислосливочное, сахар, дрожжи хлебопекарные прессованные, соль, инвертный сахар, глейз (желток яичный, молоко).", nutrition: {"kcal": 294, "protein": 5, "fat": 14, "carbs": 36} },
+            { id: "s5", cat: "Слойка", name: "Царь круассан классический", desc: "Царь круассан — идеальный выбор для тех, кто хочет насладиться настоящим французским круассаном в его самом большом и вкусном проявлении. А также предлагаем вариант с миндальной начинкой (+2,500 руб.)", weight: "1650г", price: 13500, img: "https://laposte.ru/wp-content/uploads/2026/02/dsc_3610-scaled.jpg", composition: "Мука пшеничная в/с, вода питьевая, масло сладко-сливочное 82%, сахар, дрожжи хлебопекарные прессованные, глютен, соль, инвертный сахар, глейз (желток яичный, молоко).", nutrition: {"kcal": 370, "protein": 7, "fat": 14, "carbs": 52} },
+            { id: "s6", cat: "Слойка", name: "Слойка «Крем-брюле»", desc: "Хрустящие слои с нежным ванильным крем-брюле и настоящей карамельной корочкой.", weight: "128г", price: 650, img: "https://laposte.ru/wp-content/uploads/2026/03/b0e33ad9-901f-4b47-a542-5e2149c45e3d-1.jpg", composition: "слоёное тесто (мука пшеничная в/с, масло сливочное сладко-сливочное м.д.ж. 82%, вода питьевая, дрожжи прессованные, соль поваренная); начинка крем-брюле (сливки пастеризованные, молоко пастеризованное, яичный желток, сахар-песок, ванильная паста из бурбонской ванили); сахар-песок (карамельный диск); сахарная пудра; гель нейтральный кондитерский, пищевой лак.", nutrition: {"kcal": 315, "protein": 4, "fat": 19, "carbs": 30} },
+            { id: "s7", cat: "Слойка", name: "Слойка «Тартифлет с яблоком и фундуком»", desc: "Слоёное тесто, ламинированное вручную: по краям хрустящее, в центре остаётся нежным. Слой франжипана на фундучной муке, томлёные яблоки в сливочной карамели. Обжаренный фундук — финальный хрустящий акцент.", weight: "90г", price: 450, img: "https://laposte.ru/wp-content/uploads/2026/05/9bf6ee68-3647-431d-9bec-7e0570bff449-1-scaled.jpg", composition: "яблоко карамелизованное (яблоко, сахар-песок, масло сливочное сладко-сливочное несолёное м.д.ж. 82,5%), тесто слоёное (мука пшеничная в/с, масло сливочное сладко-сливочное несолёное м.д.ж. 82,5%, вода питьевая, дрожжи прессованные, сахар-песок, соль поваренная, тримолин (сироп инвертный), глютен пшеничный), крем франжипан фундучный (мука фундучная, сахар-песок, масло сливочное сладко-сливочное несолёное м.д.ж. 82,5%, яйцо меланж пастеризованное, молоко м.д.ж. 3,2%, коньяк, соль поваренная), гель нейтральный (вода, сахар-песок, пектин NH, сироп глюкозы, кислота лимонная), сахарный сироп (сахар-песок, вода), глазурь круассан (желток яичный пастеризованный, молоко м.д.ж. 3,2%), сахар-песок, орех фундук жареный.", nutrition: {"kcal": 284, "protein": 4, "fat": 12, "carbs": 38} },
+            { id: "s8", cat: "Слойка", name: "Слойка Улитка", desc: "Французская классика с заварным кремом и золотым изюмом, вымоченным в роме.", weight: "120г", price: 490, img: "https://laposte.ru/wp-content/uploads/2026/02/4d2688fe-b312-4aa7-a7b9-ff64778ecb8a-13.png", composition: "Мука пшеничная в/с, вода питьевая, масло кислосливочное, золотой изюм джамбо, заварной крем (молоко, яйца куриные, сахар, кукурузный крахмал, ваниль), сахар, дрожжи хлебопекарные прессованные, соль, инвертный сахар, глейз (желток яичный, молоко), темный ром, сироп глюкоз.", nutrition: {"kcal": 280, "protein": 4, "fat": 12, "carbs": 34} },
+            { id: "s9", cat: "Слойка", name: "Крендель слоеный «Брецель Барбары»", desc: "Традиционный Люксембургский брецель из слоёного теста в сладкой корочке из миндальных лепестков.", weight: "60г", price: 320, img: "https://laposte.ru/wp-content/uploads/2026/02/1caaa4fb-e04b-453a-8e43-5f63895a2d29-1.png", composition: "Мука пшеничная в/с, сливочное масло 84%, питьевая вода, миндаль, сахар, инвертный сахар, соль, прессованные дрожжи, желток, молоко.", nutrition: {"kcal": 451, "protein": 7, "fat": 19, "carbs": 60} },
+
+            // ВЫПЕЧКА И ДЕСЕРТЫ
+            { id: "d1", cat: "Выпечка и десерты", name: "Шведская булочка", desc: "Тягучая ароматная шведская булочка.", weight: "100г", price: 450, img: "https://laposte.ru/wp-content/uploads/2026/02/e9f0d1ec-e94c-4391-a304-c190ecd09a5e-16-scaled.jpg", composition: "Мука пшеничная в/с, вода питьевая, сливочное масло, яйцо, сахар, соль, прессованные дрожжи, кардамон, желток.", nutrition: {"kcal": 378, "protein": 4, "fat": 22, "carbs": 38} },
+            { id: "d2", cat: "Выпечка и десерты", name: "Плюшка Московская", desc: "Плюшка со штрейзелем, прослоенная любимой сахарной крошкой, знакомой с детства.", weight: "130г", price: 450, img: "https://laposte.ru/wp-content/uploads/2026/02/e0c6a5bd-e42d-46e4-80f1-8970b37e8740-scaled.jpg", composition: "дрожжевое сдобное тесто (мука пшеничная в/с, глютен пшеничный, молоко коровье пастеризованное м.д.ж. 3,5 %, вода питьевая, сахар-песок, сливочное масло сладко‑сливочное несолёное м.д.ж. 82 %, мёд цветочный, яйцо куриное (меланж), дрожжи прессованные, соль поваренная пищевая), сахарный сироп (вода питьевая, сахар-песок), крамбл (мука пшеничная в/с, сахар-песок, сливочное масло сладко‑сливочное несолёное м.д.ж. 82 %).", nutrition: {"kcal": 343, "protein": 6, "fat": 14, "carbs": 45} },
+            { id: "d3", cat: "Выпечка и десерты", name: "Плюшка Маковая", desc: "Воздушная сдобная булочка, прослоенная маковой начинкой и пропитанная ромовым сиропом.", weight: "130г", price: 520, img: "https://laposte.ru/wp-content/uploads/2026/02/9702-scaled.jpg", composition: "дрожжевое сдобное тесто (мука пшеничная в/с, глютен пшеничный, молоко коровье пастеризованное м.д.ж. 3,5 %, вода питьевая, сахар-песок, сливочное масло сладко‑сливочное несолёное м.д.ж. 82 %, мёд цветочный, яйцо куриное (меланж), дрожжи прессованные, соль поваренная пищевая), сахарный сироп (вода питьевая, сахар-песок), крамбл (мука пшеничная в/с, сахар-песок, сливочное масло сладко‑сливочное несолёное м.д.ж. 82 %), маковая начинка (варёный мак, изюм «золотой джамбо», сахар-песок, заварной крем из молока, яичного желтка, сахара, крахмала кукурузного и ванильной пасты, апельсиновая цедра), ромовый сироп (сахар-песок, вода, тёмный ром из Доминиканы), глазурь (яичный желток, молоко).", nutrition: {"kcal": 339, "protein": 5, "fat": 17, "carbs": 39} },
+            { id: "d4", cat: "Выпечка и десерты", name: "Тарталетка с ягодами", desc: "Тарталетка из песочного теста, наполненная сочным ягодным желе из малины, голубики, ежевики и клубники. Сверху свежие сочные ягоды.", weight: "160г", price: 950, img: "https://laposte.ru/wp-content/uploads/2026/06/1b93c306-bb5a-4c1d-9019-d76ba33ac897.png", composition: "тарталетка из песочного теста Pâte sucrée (масло сладко-сливочное м.д.ж. 84%, сахар песок, соль, мука миндальная, мука пшеничная в/с, яичный меланж пастеризованный), крем взбитый ванильный ганаш (шоколад белый, сливки коровьи пастеризованные 33%, желатин, вода, ванильная паста из бурбонской ванили), гель из сезонных ягод ((малина, голубика, ежевика, клубника, паста из тархуна-эстрагона), сахар, пектин NH, агар-агар, лимонный сок)), свежая ягода, нейтральный гель (вода, сахар, пектин NH, сироп глюкозы, лимонная кислота).", nutrition: {"kcal": 171, "protein": 2, "fat": 8, "carbs": 20} },
+            { id: "d5", cat: "Выпечка и десерты", name: "Тарталетка с инжиром и дор блю", desc: "Игра контрастов в каждой тарталетке! Воздушная песочная основа, шелковистый ванильный ганаш, сочное конфи из инжира с нотками красного вина, дерзкий дор блю и тёплый оттенок грецкого ореха — маленькое приключение для вкусовых рецепторов.", weight: "170г", price: 1350, img: "https://laposte.ru/wp-content/uploads/2026/08/f69560be-480f-4f6c-953a-5666e1703a39.png", composition: "песочное тесто или Pâte sucrée (масло сладко-сливочное 82,5%, сахар, соль, мука миндальная, мука пшеничная в/с, яичный меланж пастеризованный), крем взбитый ванильный ганаш (шоколад белый, сливки коровьи пастеризованные 33%, желатин, вода, ванильная паста из бурбонской ванили), конфи из инжира (инжир, сахар, пектин NH, вино красное сухое, гуаровая камедь), инжир, нейтральный гель (вода, сахар, пектин NH, сироп глюкозы, лимонная кислота), сыр дор блю с голубой плесенью (пастеризованное молоко, соль пищевая, плесневые грибы Renicillinum Roqueforti, микробиологический молокосвертывающий фермент, мезофильные молочнокислые бактерии, бактерии для ускорения созревания сыра.), орех грецкий.", nutrition: {"kcal": 204, "protein": 3, "fat": 11, "carbs": 22} },
+            { id: "d6", cat: "Выпечка и десерты", name: "Тарталетка с земляникой", desc: "Земляничное удовольствие на корзинке из песочного теста с заварным кремом.", weight: "160г", price: 1600, img: "https://laposte.ru/wp-content/uploads/2026/06/4l1a3133-kopiya-scaled.jpg", composition: "Песочное тесто или Páte Sablée (масло сладко-сливочное 84%, сахар, соль, мука миндальная, мука пшеничная в/с, яичный меланж пастеризованный), крем взбитый ванильный ганаш (шоколад белый, сливки коровьи пастеризованные 33%, желатин, вода, ванильная паста из бурбонской ванили), компотé земляничное (земляника лесная с/м, сахар, пектин NH), гель нейтральный (вода, сахар, пектин NH, сироп глюкозы, лимонная кислота), земляника.", nutrition: {"kcal": 192, "protein": 2, "fat": 10, "carbs": 21} },
+            { id: "d7", cat: "Выпечка и десерты", name: "Чизкейк с ягодами", desc: "Чизкейк Сан-Себастьян по рецептуре всемирно известного шеф-кондитера Карима Буржи. Нежный кремовый ванильный чизкейк на основе из песочного теста, украшенный свежими сочными ягодами.", weight: "1200г", price: 5500, img: "https://laposte.ru/wp-content/uploads/2026/02/83985d7e-9a23-4f7c-86c4-d103e5aa3731-10-scaled.jpg", composition: "Сливочный сыр, маскарпоне, сливки 33%, яйцо, сахар, песочная крошка (мука пшеничная в/с, сливочное масло, вода, соль).", nutrition: {"kcal": 208, "protein": 4, "fat": 12, "carbs": 20} },
+            { id: "d8", cat: "Выпечка и десерты", name: "Чизкейк «Карима Буржи»", desc: "Чизкейк Сан-Себастьян по рецептуре всемирно известного шеф-кондитера Карима Буржи. Нежный кремовый ванильный чизкейк на основе песочного теста.", weight: "1000г", price: 3500, img: "https://laposte.ru/wp-content/uploads/2026/02/a552a7a2-a8f5-405d-b549-de9e5fb1da1f-10-scaled.jpg", composition: "Сливочный сыр, маскарпоне, сливки 33%, яйцо, сахар, песочная крошка (мука пшеничная в/с, сливочное масло, вода, соль).", nutrition: {"kcal": 296, "protein": 5, "fat": 20, "carbs": 21} },
+            { id: "d9", cat: "Выпечка и десерты", name: "Кекс «Мохито»", desc: "Нежный сочный кекс со свежим ароматом цедры лайма, мяты и легкой кислинкой сока лайма.", weight: "360г", price: 1200, img: "https://laposte.ru/wp-content/uploads/2026/02/fb168c7e-bce4-4df9-a78e-59f75f2d0345-10.png", composition: "Сливки 33%, листья мяты, масло сливочное, сахар, цедра лайма, меланж, соль, мука пшеничная в/c, разрыхлитель. Сироп: вода, сахар белый, сок лайма. Глазурь: нейтральный гель (вода, сахар, глюкоза, пектин NH), сок лайма.", nutrition: {"kcal": 296, "protein": 3, "fat": 11, "carbs": 44} },
+            { id: "d10", cat: "Выпечка и десерты", name: "Кекс «ТиКейк»", desc: "Лимонно-миндальный кекс с маком, яркий и сочный", weight: "380г", price: 1200, img: "https://laposte.ru/wp-content/uploads/2026/04/337a8f2f-9297-413b-91e2-e823d500dcd8-1-scaled.jpg", composition: "Мука пшеничная в/с, миндальная мука, сахар, масло сливочное, яйцо, ваниль, разрыхлитель, соль, мак.", nutrition: {"kcal": 397, "protein": 6, "fat": 22, "carbs": 41} },
+            { id: "d11", cat: "Выпечка и десерты", name: "Сочник с творогом", desc: "Рассыпчатое песочное тесто, фермерский творог, бурбонская ваниль.", weight: "85г", price: 350, img: "https://laposte.ru/wp-content/uploads/2026/02/5fd27a8d-4117-4831-9e81-5b0ef3fc111b-1-scaled.jpg", composition: "Тесто песочное (мука пшеничная в/с, масло сладко-сливочное несоленое м.д.ж. 82%, разрыхлитель, яичный меланж, соль, сахар), начинка из творога (творог пластовой 9%, сахарная пудра, мука пшеничная в/с, ванильная паста из бурбонской ванили, сметана м.д.ж. 30%, яичный желток), глейз (яичный желток, молоко коровье м.д.ж. 3,5%).", nutrition: {"kcal": 347, "protein": 9, "fat": 18, "carbs": 37} },
+            { id: "d12", cat: "Выпечка и десерты", name: "Бисквит «Мадлен» лимон", desc: "Бисквитные пирожные - птифур с маслом нуазет и лимонной цедрой.", weight: "28г", price: 170, img: "https://laposte.ru/wp-content/uploads/2026/02/9a645908-af96-4cc6-a2f1-f4699fff1949-10.png", composition: "Яйца, сахар, мука пшеничная в/с, сливочное масло нуазет, мед, цедра лимона, разрыхлитель.", nutrition: {"kcal": 342, "protein": 4, "fat": 17, "carbs": 41} },
+            { id: "d13", cat: "Выпечка и десерты", name: "Бисквит «Мадлен» малина-эстрагон", desc: "Ароматные и хрупкие мадленки с малиной и эстрагоном.", weight: "28г", price: 190, img: "https://laposte.ru/wp-content/uploads/2026/02/8c5250e8-e4aa-408b-8957-bf13016daac5-10.jpg", composition: "яйца, сахар, мука пшеничная в/с, сливочное масло нуазет, мед, цедра лимона, пюре малина, паста тархун, разрыхлитель.", nutrition: {"kcal": 349, "protein": 5, "fat": 17, "carbs": 43} },
+            { id: "d14", cat: "Выпечка и десерты", name: "Десерт Канле", desc: "Классический десерт родом из Бордо - плотная корочка со вкусом медовой карамели и нежное ароматное тесто, напоминающее крем.", weight: "25г", price: 230, img: "https://laposte.ru/wp-content/uploads/2026/02/f93f3b41-6176-4bd3-9e8f-4ede829360cc-10.png", composition: "Молоко, мука пшеничная в/с, сливочное масло, сахар, соль, меланж, желток, темный ром, воск пчелиный, ваниль.", nutrition: {"kcal": 222, "protein": 3, "fat": 7, "carbs": 32} }
+
+        ];
+
+        // Товар недоступен, если он в STOP_LIST или в таблице стоит «в наличии = нет»
+        function isStopped(id) {
+            const p = products.find(x => x.id === id);
+            return STOP_LIST.indexOf(id) !== -1 || !!(p && p.inStock === false);
+        }
+        // Максимум штук: лимит товара из таблицы или общий MAX_QTY
+        function maxQty(id) {
+            const p = products.find(x => x.id === id);
+            return (p && p.limit) ? p.limit : MAX_QTY;
+        }
+
+        let cart = {};                    // корзина: { id товара: количество }
+        let currentCategory = 'Хлеб';
+        let view = 'catalog';             // какой экран открыт: 'catalog' или 'cart'
+        let selectedDate = null;          // выбранная дата выдачи (формат ГГГГ-ММ-ДД)
+        let openedId = null;              // id товара, открытого в окне
+
+        function init() {
+            document.getElementById('consentText').textContent = 'Я согласен с условиями. ' + TERMS_TEXT;
+            loadProfile();
+            document.querySelectorAll('.contact-box').forEach(el => {
+                el.innerHTML = `Вопросы по заказу:<br>
+                    <a href="https://t.me/${CONTACT_TG}" onclick="openTg(event)">@${CONTACT_TG}</a> ·
+                    <a href="tel:${CONTACT_PHONE_HREF}">${CONTACT_PHONE}</a>`;
+            });
+            renderCategories();
+            renderAllProducts();
+            loadCatalog();   // если задана ссылка на таблицу — подтянем каталог из неё
+        }
+
+        // Открывает чат в Telegram (внутри мини-приложения это работает лучше обычной ссылки)
+        function openTg(e) {
+            if (tg.openTelegramLink) {
+                e.preventDefault();
+                tg.openTelegramLink('https://t.me/' + CONTACT_TG);
+            }
+        }
+
+        // Запоминаем имя и телефон на телефоне клиента, чтобы не вводить каждый раз
+        function loadProfile() {
+            let saved = {};
+            try { saved = JSON.parse(localStorage.getItem('lp_profile') || '{}'); } catch (e) {}
+            const u = (tg.initDataUnsafe && tg.initDataUnsafe.user) || {};
+            document.getElementById('custName').value = saved.name || u.first_name || '';
+            document.getElementById('custPhone').value = saved.phone || '';
+        }
+        function saveProfile(name, phone) {
+            try { localStorage.setItem('lp_profile', JSON.stringify({ name: name, phone: phone })); } catch (e) {}
+        }
+
+        function notify(msg) {
+            if (inTelegram && tg.showAlert) tg.showAlert(msg); else alert(msg);
+        }
+
+        // ================= ДАТЫ (московское время) =================
+        // @@DATES-START
+        function moscowNow() {
+            const parts = new Intl.DateTimeFormat('en-CA', {
+                timeZone: 'Europe/Moscow', year: 'numeric', month: '2-digit',
+                day: '2-digit', hour: '2-digit', hourCycle: 'h23'
+            }).formatToParts(new Date());
+            const get = t => parseInt(parts.find(p => p.type === t).value, 10);
+            return { y: get('year'), m: get('month'), d: get('day'), h: get('hour') };
+        }
+
+        function isoDate(dt) { return dt.toISOString().slice(0, 10); }
+
+        // Закрыта ли дата выдачи (iso = 'ГГГГ-ММ-ДД')
+        function isClosed(iso) {
+            if (CLOSED_DATES.indexOf(iso) !== -1) return true;
+            const md = iso.slice(5); // 'ММ-ДД'
+            return CLOSED_EVERY_YEAR.some(r => r.from <= r.to
+                ? (md >= r.from && md <= r.to)
+                : (md >= r.from || md <= r.to));   // диапазон через Новый год
+        }
+
+        // Все даты ближайших DAYS_AHEAD дней: с завтра (до 18:00) или с послезавтра (после 18:00)
+        function windowDates() {
+            const n = moscowNow();
+            const start = n.h >= CUTOFF_HOUR ? 2 : 1;
+            return Array.from({ length: DAYS_AHEAD }, (_, i) => new Date(Date.UTC(n.y, n.m - 1, n.d + start + i)));
+        }
+
+        // Только те даты, на которые можно оформить заказ
+        function availableDates() {
+            return windowDates().filter(dt => !isClosed(isoDate(dt)));
+        }
+        // @@DATES-END
+
+        function renderDateChips() {
+            const dates = availableDates();
+            const anyClosed = dates.length < windowDates().length;
+            document.getElementById('datesNote').textContent = anyClosed
+                ? 'Часть дат недоступна: выдача не производится (праздничные дни).' : '';
+            if (dates.length === 0) {
+                selectedDate = null;
+                document.getElementById('dateChips').innerHTML = '<div class="hint">Сейчас приём заказов закрыт. Загляните позже или напишите нам.</div>';
+                return;
+            }
+            if (!dates.map(isoDate).includes(selectedDate)) selectedDate = isoDate(dates[0]);
+            document.getElementById('dateChips').innerHTML = dates.map((dt, i) => {
+                const iso = isoDate(dt);
+                const wd = dt.toLocaleDateString('ru-RU', { timeZone: 'UTC', weekday: 'short' });
+                const dm = dt.toLocaleDateString('ru-RU', { timeZone: 'UTC', day: 'numeric', month: 'short' });
+                return `<div class="date-chip ${iso === selectedDate ? 'active' : ''}" onclick="pickDate('${iso}')">
+                    ${wd}<b>${dm}</b><small>${i === 0 ? 'ближайшая' : ''}</small></div>`;
+            }).join('');
+        }
+
+        function pickDate(iso) {
+            selectedDate = iso;
+            renderDateChips();
+        }
+
+        // ================= КАТАЛОГ =================
+        let searchQuery = '';
+
+        // Категории берутся из самих товаров (порядок — по первому появлению)
+        function getCategories() {
+            return [...new Set(products.map(p => p.cat))];
+        }
+
+        function renderCategories() {
+            const cats = getCategories();
+            if (!cats.includes(currentCategory)) currentCategory = cats[0];
+            const container = document.getElementById('categoryContainer');
+            container.innerHTML = cats.map(c =>
+                `<button class="cat-btn ${(!searchQuery && c === currentCategory) ? 'active' : ''}" onclick="filterCat('${c}')">${c}</button>`
+            ).join('');
+        }
+
+        function filterCat(cat) {
+            currentCategory = cat;
+            searchQuery = '';
+            document.getElementById('searchInput').value = '';
+            renderCategories();
+            renderAllProducts();
+        }
+
+        function onSearch(value) {
+            searchQuery = value.trim().toLowerCase();
+            renderCategories();
+            renderAllProducts();
+        }
+
+        function renderAllProducts() {
+            const container = document.getElementById('productsContainer');
+            // При поиске ищем по всем категориям, иначе показываем выбранную категорию
+            const filtered = searchQuery
+                ? products.filter(p => (p.name + ' ' + p.desc).toLowerCase().includes(searchQuery))
+                : products.filter(p => p.cat === currentCategory);
+
+            if (filtered.length === 0) {
+                container.innerHTML = `<div style="grid-column: 1/-1; text-align: center; color: #888; padding: 40px 0;">${searchQuery ? 'Ничего не найдено' : 'Категория пуста'}</div>`;
+                return;
+            }
+
+            container.innerHTML = filtered.map(p => {
+                const count = cart[p.id] || 0;
+                const stopped = isStopped(p.id);
+                return `
+                    <div class="product-card ${stopped ? 'soldout' : ''}" id="card-${p.id}">
+                        <div class="card-top" onclick="openProduct('${p.id}')" style="cursor:pointer">
+                            <div class="img-wrapper">
+                                <img src="${p.img}" class="product-img" alt="${p.name}" loading="lazy" onerror="this.style.opacity='0';">
+                            </div>
+                            <div class="product-title">${p.name}</div>
+                            <div class="product-desc">${p.desc}</div>
+                        </div>
+                        <div class="product-footer">
+                            <div class="price-group">
+                                <span class="product-price">${p.price} ₽</span>
+                                <span class="product-weight">${p.weight}</span>
+                            </div>
+                            <div class="action-container" id="action-${p.id}">
+                                ${getActionHTML(p.id, count)}
+                            </div>
+                        </div>
+                    </div>
+                `;
+            }).join('');
+        }
+
+        // Кнопка «+», счётчик или надпись «Нет в наличии»
+        function getActionHTML(id, count) {
+            if (isStopped(id)) {
+                return `<span class="soldout-label">Нет в наличии</span>`;
+            }
+            if (count === 0) {
+                return `<button class="add-btn" onclick="changeCount('${id}', 1)">+</button>`;
+            }
+            return `
+                <div class="counter">
+                    <button onclick="changeCount('${id}', -1)">-</button>
+                    <span>${count}</span>
+                    <button onclick="changeCount('${id}', 1)" ${count >= maxQty(id) ? 'disabled' : ''}>+</button>
+                </div>
+            `;
+        }
+
+        // Изменение количества товара (работает и в каталоге, и в корзине, и в окне товара)
+        function changeCount(id, delta) {
+            if (delta > 0 && isStopped(id)) return;
+            const next = Math.min(maxQty(id), (cart[id] || 0) + delta);
+            if (next <= 0) delete cart[id]; else cart[id] = next;
+
+            const box = document.getElementById(`action-${id}`);
+            if (box) box.innerHTML = getActionHTML(id, cart[id] || 0);
+
+            updateModalAction();
+
+            if (view === 'cart') {
+                if (Object.keys(cart).length === 0) { showCatalog(); return; }
+                renderCart();
+            }
+            updateMain();
+        }
+
+        function cartTotals() {
+            let total = 0, count = 0;
+            for (const id in cart) {
+                const p = products.find(x => x.id === id);
+                if (p) { total += p.price * cart[id]; count += cart[id]; }
+            }
+            return { total, count };
+        }
+
+        // ================= КОРЗИНА =================
+        function renderCart() {
+            const ids = Object.keys(cart);
+            let total = 0;
+            document.getElementById('cartRows').innerHTML = ids.map(id => {
+                const p = products.find(x => x.id === id);
+                const qty = cart[id];
+                const sum = p.price * qty;
+                total += sum;
+                return `
+                    <div class="cart-row">
+                        <div class="cart-info">
+                            <div class="cart-name">${p.name}</div>
+                            <div class="cart-sub">${p.price} ₽ × ${qty} = ${sum} ₽${qty >= maxQty(id) ? ' · максимум' : ''}</div>
+                        </div>
+                        <div class="counter">
+                            <button onclick="changeCount('${id}', -1)">-</button>
+                            <span>${qty}</span>
+                            <button onclick="changeCount('${id}', 1)" ${qty >= maxQty(id) ? 'disabled' : ''}>+</button>
+                        </div>
+                    </div>`;
+            }).join('');
+            document.getElementById('cartTotal').textContent = total + ' ₽';
+            renderDateChips();
+        }
+
+        function showCart() {
+            if (Object.keys(cart).length === 0) return;
+            view = 'cart';
+            document.getElementById('catalogView').style.display = 'none';
+            document.getElementById('cartView').style.display = 'block';
+            renderCart();
+            updateMain();
+            syncBack();
+            window.scrollTo(0, 0);
+        }
+
+        function showCatalog() {
+            view = 'catalog';
+            document.getElementById('cartView').style.display = 'none';
+            document.getElementById('catalogView').style.display = 'block';
+            renderAllProducts();
+            updateMain();
+            syncBack();
+            window.scrollTo(0, 0);
+        }
+
+        // ================= ОКНО ТОВАРА =================
+        function openProduct(id) {
+            openedId = id;
+            renderModal();
+            document.getElementById('modalOverlay').classList.add('open');
+            document.body.style.overflow = 'hidden';
+            syncBack();
+        }
+
+        function closeProduct() {
+            openedId = null;
+            document.getElementById('modalOverlay').classList.remove('open');
+            document.body.style.overflow = '';
+            syncBack();
+        }
+
+        // Блок КБЖУ. n = { kcal, protein, fat, carbs }
+        function nutriHTML(title, n) {
+            return `
+                <h4>${title}</h4>
+                <div class="nutri">
+                    <div><span>ккал</span><b>${n.kcal}</b></div>
+                    <div><span>белки</span><b>${n.protein}</b></div>
+                    <div><span>жиры</span><b>${n.fat}</b></div>
+                    <div><span>углеводы</span><b>${n.carbs}</b></div>
+                </div>`;
+        }
+
+        function renderModal() {
+            const p = products.find(x => x.id === openedId);
+            if (!p) return;
+
+            let html = `
+                <img class="modal-img" src="${p.img}" alt="${p.name}" onerror="this.style.opacity='0';">
+                <div class="modal-title">${p.name}</div>
+                <div class="modal-weight">${p.weight}</div>
+                <div class="modal-desc">${p.desc}</div>`;
+
+            if (p.composition) {
+                html += `<h4>Состав</h4><div class="modal-text">${p.composition}</div>`;
+            }
+
+            if (p.nutrition) {
+                const n = p.nutrition;
+                const k = parseInt(p.weight) / 100;          // вес в граммах / 100
+                const r = v => Number((v * k).toFixed(1));   // округляем до 0.1
+                const serving = {
+                    kcal: Math.round(n.kcal * k),
+                    protein: r(n.protein),
+                    fat: r(n.fat),
+                    carbs: r(n.carbs)
+                };
+                html += nutriHTML('Пищевая ценность на 100 г', n);
+                html += nutriHTML('Пищевая ценность на порцию', serving);
+            }
+
+            document.getElementById('modalContent').innerHTML = html;
+            document.querySelector('#modalOverlay .modal').scrollTop = 0;
+            updateModalAction();
+        }
+
+        // Кнопка «В корзину» / счётчик / «Нет в наличии» внизу окна
+        function updateModalAction() {
+            if (!openedId) return;
+            const p = products.find(x => x.id === openedId);
+            const count = cart[p.id] || 0;
+            const box = document.getElementById('modalAction');
+
+            if (isStopped(p.id)) {
+                box.innerHTML = `<button class="modal-add" disabled>Нет в наличии</button>`;
+            } else if (count === 0) {
+                box.innerHTML = `<button class="modal-add" onclick="changeCount('${p.id}', 1)">${p.price} ₽ В корзину</button>`;
+            } else {
+                box.innerHTML = `
+                    <div class="counter">
+                        <button onclick="changeCount('${p.id}', -1)">-</button>
+                        <span>${count}</span>
+                        <button onclick="changeCount('${p.id}', 1)" ${count >= maxQty(p.id) ? 'disabled' : ''}>+</button>
+                    </div>`;
+            }
+        }
+
+        // ================= КНОПКИ TELEGRAM =================
+        // Кнопка «назад» в шапке: закрывает окно товара или возвращает из корзины в каталог
+        function onBack() {
+            if (openedId) closeProduct();
+            else if (view === 'cart') showCatalog();
+        }
+        function syncBack() {
+            if (openedId || view === 'cart') tg.BackButton.show(); else tg.BackButton.hide();
+            // В браузере вместо кнопки Telegram показываем ссылку «Назад» в корзине
+            document.getElementById('webBack').style.display = (!inTelegram && view === 'cart') ? 'block' : 'none';
+        }
+        tg.BackButton.onClick(onBack);
+
+        // Большая кнопка внизу: в каталоге ведёт в корзину, в корзине — отправляет заказ
+        function updateMain() {
+            const { total, count } = cartTotals();
+            const webBar = document.getElementById('webMain');
+            if (count === 0) {
+                tg.MainButton.hide();
+                webBar.style.display = 'none';
+                return;
+            }
+            const text = view === 'cart' ? `ОФОРМИТЬ ЗАКАЗ (${total} ₽)` : `КОРЗИНА (${total} ₽)`;
+            tg.MainButton.text = text;
+            tg.MainButton.show();
+            if (!inTelegram) {   // в браузере показываем свою кнопку внизу страницы
+                document.getElementById('webMainBtn').textContent = text;
+                webBar.style.display = 'block';
+            }
+        }
+
+        // Действие большой кнопки: в каталоге — открыть корзину, в корзине — отправить заказ
+        function mainAction() {
+            if (view === 'catalog') showCart(); else submitOrder();
+        }
+        tg.MainButton.onClick(mainAction);
+
+        // ================= ОТПРАВКА ЗАКАЗА БОТУ =================
+        // ВАЖНО: цены не отправляем. Только «что», «сколько», «на какую дату» и комментарий.
+        // Цены и сумму бот считает сам по своему прайсу.
+        function submitOrder() {
+            // Проверяем, что выбранная дата всё ещё доступна (вдруг перевалило за 18:00)
+            const dates = availableDates().map(isoDate);
+            if (dates.length === 0) {
+                notify('Сейчас приём заказов закрыт. Загляните позже или напишите нам.');
+                return;
+            }
+            if (!dates.includes(selectedDate)) {
+                selectedDate = dates[0];
+                renderDateChips();
+                notify('Время приёма заказов на выбранную дату истекло. Мы выбрали ближайшую доступную дату — проверьте её и нажмите «Оформить заказ» ещё раз.');
+                return;
+            }
+
+            // Проверяем имя, телефон и согласие с условиями
+            const nameEl = document.getElementById('custName');
+            const phoneEl = document.getElementById('custPhone');
+            const consentEl = document.getElementById('consent');
+            const name = nameEl.value.trim();
+            const phone = phoneEl.value.trim();
+            const digits = phone.replace(/\D/g, '');
+            const nameOk = name.length >= 2;
+            const phoneOk = digits.length >= 10 && digits.length <= 12;
+            nameEl.classList.toggle('invalid', !nameOk);
+            phoneEl.classList.toggle('invalid', !phoneOk);
+            document.getElementById('consentBox').classList.toggle('invalid', !consentEl.checked);
+            if (!nameOk || !phoneOk || !consentEl.checked) {
+                notify('Укажите имя и телефон и подтвердите условия заказа.');
+                return;
+            }
+
+            const items = Object.keys(cart)
+                .filter(id => products.some(p => p.id === id) && !isStopped(id))
+                .map(id => ({ id: id, qty: cart[id] }));
+            if (items.length === 0) {
+                notify('Товары из корзины сейчас недоступны. Вернитесь в каталог и выберите другие.');
+                return;
+            }
+
+            saveProfile(name, phone);
+            const payload = {
+                v: 1,
+                date: selectedDate,
+                name: name,
+                phone: phone,
+                comment: document.getElementById('comment').value.trim().slice(0, 300),
+                items: items
+            };
+            const data = JSON.stringify(payload);
+
+            if (inTelegram) {
+                tg.sendData(data);   // после отправки Telegram сам закроет мини-приложение
+            } else {
+                console.log('Отправка данных боту:', data);
+                alert('Тестовый режим вне Telegram.\nБот получит:\n\n' + data);
+                cart = {};
+                document.getElementById('comment').value = '';
+                showCatalog();
+            }
+        }
+
+        // ================= КАТАЛОГ ИЗ GOOGLE ТАБЛИЦЫ =================
+        // @@CSV-START
+        // Разбор CSV (учитывает кавычки, запятые и переносы строк внутри ячеек)
+        function parseCSV(text) {
+            text = text.replace(/^\uFEFF/, '');
+            const rows = []; let row = [], cur = '', q = false;
+            for (let i = 0; i < text.length; i++) {
+                const c = text[i];
+                if (q) {
+                    if (c === '"') { if (text[i + 1] === '"') { cur += '"'; i++; } else q = false; }
+                    else cur += c;
+                } else if (c === '"') q = true;
+                else if (c === ',') { row.push(cur); cur = ''; }
+                else if (c === '\n' || c === '\r') {
+                    if (c === '\r' && text[i + 1] === '\n') i++;
+                    row.push(cur); cur = ''; rows.push(row); row = [];
+                } else cur += c;
+            }
+            if (cur !== '' || row.length) { row.push(cur); rows.push(row); }
+            return rows;
+        }
+
+        // Число из ячейки (понимает запятую вместо точки: «6,5»)
+        function csvNum(v) {
+            const n = parseFloat(String(v == null ? '' : v).replace(/\s/g, '').replace(',', '.'));
+            return isNaN(n) ? null : n;
+        }
+
+        // Превращает CSV листа «Каталог» в список товаров
+        function csvToProducts(text) {
+            const rows = parseCSV(text).filter(r => r.some(c => c.trim() !== ''));
+            if (rows.length < 2) return [];
+            const head = rows.shift().map(h => h.trim().toLowerCase());
+            const idx = name => head.indexOf(name);
+            const get = (r, name) => { const i = idx(name); return i === -1 ? '' : (r[i] || '').trim(); };
+            const yes = v => ['нет', 'no', 'false', '0'].indexOf(String(v).trim().toLowerCase()) === -1;
+
+            const list = [];
+            rows.forEach(r => {
+                const id = get(r, 'id'), name = get(r, 'название'), price = csvNum(get(r, 'цена'));
+                if (!id || !name || price === null) return;      // неполные строки пропускаем
+                if (!yes(get(r, 'показывать'))) return;          // «показывать = нет» — скрыт
+                let weight = get(r, 'вес');
+                if (/^\d+$/.test(weight)) weight += 'г';
+                const kcal = csvNum(get(r, 'ккал'));
+                list.push({
+                    id: id,
+                    cat: get(r, 'категория') || 'Другое',
+                    name: name,
+                    desc: get(r, 'описание'),
+                    weight: weight,
+                    price: price,
+                    img: get(r, 'фото'),
+                    composition: get(r, 'состав'),
+                    nutrition: kcal === null ? null : {
+                        kcal: kcal,
+                        protein: csvNum(get(r, 'белки')) || 0,
+                        fat: csvNum(get(r, 'жиры')) || 0,
+                        carbs: csvNum(get(r, 'углеводы')) || 0
+                    },
+                    limit: csvNum(get(r, 'лимит')),
+                    inStock: yes(get(r, 'в наличии'))
+                });
+            });
+            return list;
+        }
+        // @@CSV-END
+
+        async function loadCatalog() {
+            if (!CATALOG_CSV_URL) return;
+            try {
+                const res = await fetch(CATALOG_CSV_URL, { cache: 'no-store' });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                const list = csvToProducts(await res.text());
+                if (list.length === 0) throw new Error('пустой каталог');
+                products = list;
+                renderCategories();
+                renderAllProducts();
+                if (view === 'cart') renderCart();
+                updateMain();
+            } catch (e) {
+                // Если таблица недоступна — остаёмся на встроенном списке
+                console.warn('Каталог из таблицы не загрузился, используется встроенный:', e);
+            }
+        }
+
+        init();
+    </script>
+</body>
+</html>
