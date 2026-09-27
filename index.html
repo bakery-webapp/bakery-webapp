@@ -126,6 +126,9 @@
         .date-chip small { display: block; font-size: 10px; color: #999; min-height: 12px; }
         .date-chip.active { background: #1a1a1a; border-color: #1a1a1a; color: #fff; }
         .date-chip.active b, .date-chip.active small { color: #fff; }
+        .date-chip.disabled { cursor: default; background: #fafafa; border-color: #f0f0f0; }
+        .date-chip.disabled b { color: #bbb; text-decoration: line-through; }
+        .date-chip.disabled small { color: #c66; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
         input[type=text], input[type=tel], textarea {
             width: 100%; border: 1px solid #e5e5e5; border-radius: 10px; padding: 10px;
             font: inherit; font-size: 14px; resize: none; outline: none;
@@ -279,6 +282,10 @@
         // Пока пусто — используется встроенный список товаров ниже.
         const CATALOG_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQmPzBPA8d01jVR0QjjhOvycvoGejtdK1OGapI9oabPXwwKgVkdx3J4SUSSJG17Dh5C2eB1FhAllror/pub?gid=0&single=true&output=csv';
 
+        // Ссылка на опубликованный лист «Закрытые_даты» из той же таблицы (формат CSV).
+        // Бот читает этот лист напрямую, а сайту нужна отдельная ссылка на его публикацию.
+        const CLOSED_DATES_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQmPzBPA8d01jVR0QjjhOvycvoGejtdK1OGapI9oabPXwwKgVkdx3J4SUSSJG17Dh5C2eB1FhAllror/pub?gid=1214378932&single=true&output=csv';
+
         // Контакты для вопросов по заказу
         const CONTACT_TG = 'la_poste_ostrov1';
         const CONTACT_PHONE = '+7 995 159 89 48';
@@ -317,7 +324,8 @@
             });
             renderCategories();
             renderAllProducts();
-            loadCatalog();   // если задана ссылка на таблицу — подтянем каталог из неё
+            loadCatalog();       // если задана ссылка на таблицу — подтянем каталог из неё
+            loadClosedDates();   // и список закрытых дат с причинами
         }
 
         // Открывает чат в Telegram (внутри мини-приложения это работает лучше обычной ссылки)
@@ -357,8 +365,18 @@
 
         function isoDate(dt) { return dt.toISOString().slice(0, 10); }
 
+        // Закрытые даты из таблицы (лист «Закрытые_даты»): [{start, end, reason}], заполняется loadClosedDates()
+        let closedRanges = [];
+
+        // Причина закрытия даты (для подсказки под датой). Нет данных — null.
+        function reasonFor(iso) {
+            const hit = closedRanges.find(r => iso >= r.start && iso <= r.end);
+            return hit ? hit.reason : null;
+        }
+
         // Закрыта ли дата выдачи (iso = 'ГГГГ-ММ-ДД')
         function isClosed(iso) {
+            if (closedRanges.some(r => iso >= r.start && iso <= r.end)) return true;
             if (CLOSED_DATES.indexOf(iso) !== -1) return true;
             const md = iso.slice(5); // 'ММ-ДД'
             return CLOSED_EVERY_YEAR.some(r => r.from <= r.to
@@ -380,26 +398,34 @@
         // @@DATES-END
 
         function renderDateChips() {
-            const dates = availableDates();
-            const anyClosed = dates.length < windowDates().length;
-            document.getElementById('datesNote').textContent = anyClosed
-                ? 'Часть дат недоступна: выдача не производится (праздничные дни).' : '';
-            if (dates.length === 0) {
-                selectedDate = null;
-                document.getElementById('dateChips').innerHTML = '<div class="hint">Сейчас приём заказов закрыт. Загляните позже или напишите нам.</div>';
-                return;
+            const dates = windowDates();                              // показываем все дни окна целиком
+            const openDates = dates.filter(dt => !isClosed(isoDate(dt)));
+
+            if (!openDates.map(isoDate).includes(selectedDate)) {
+                selectedDate = openDates.length ? isoDate(openDates[0]) : null;
             }
-            if (!dates.map(isoDate).includes(selectedDate)) selectedDate = isoDate(dates[0]);
-            document.getElementById('dateChips').innerHTML = dates.map((dt, i) => {
+
+            document.getElementById('datesNote').textContent = openDates.length === 0
+                ? 'Сейчас все ближайшие даты закрыты. Загляните позже или напишите нам.'
+                : (openDates.length < dates.length ? 'Серым — даты, недоступные для выдачи (см. причину под датой).' : '');
+
+            document.getElementById('dateChips').innerHTML = dates.map(dt => {
                 const iso = isoDate(dt);
+                const closed = isClosed(iso);
+                const reason = closed ? reasonFor(iso) : null;
                 const wd = dt.toLocaleDateString('ru-RU', { timeZone: 'UTC', weekday: 'short' });
                 const dm = dt.toLocaleDateString('ru-RU', { timeZone: 'UTC', day: 'numeric', month: 'short' });
-                return `<div class="date-chip ${iso === selectedDate ? 'active' : ''}" onclick="pickDate('${iso}')">
-                    ${wd}<b>${dm}</b><small>${i === 0 ? 'ближайшая' : ''}</small></div>`;
+                const isNearest = !closed && openDates.length && iso === isoDate(openDates[0]);
+                const label = closed ? (reason || 'закрыто') : (isNearest ? 'ближайшая' : '');
+                const click = closed ? '' : `onclick="pickDate('${iso}')"`;
+                const tip = reason ? ` title="${reason.replace(/"/g, '&quot;')}"` : '';
+                return `<div class="date-chip ${closed ? 'disabled' : ''} ${iso === selectedDate ? 'active' : ''}" ${click}${tip}>
+                    ${wd}<b>${dm}</b><small>${label}</small></div>`;
             }).join('');
         }
 
         function pickDate(iso) {
+            if (isClosed(iso)) return;   // на всякий случай — такие даты и так некликабельны
             selectedDate = iso;
             renderDateChips();
         }
@@ -853,6 +879,42 @@
                     catalogState = 'error';
                     renderAllProducts();
                 }
+            }
+        }
+
+        // Строки листа «Закрытые_даты» -> [{start, end, reason}]. Даты понимает в форматах
+        // ГГГГ-ММ-ДД и ДД.ММ.ГГГГ (Google иногда отдаёт даты по-разному в зависимости от формата ячейки).
+        function parseFlexDate(s) {
+            s = (s || '').trim();
+            if (/^\d{4}-\d{2}-\d{2}$/.test(s)) return s;
+            const m = s.match(/^(\d{2})\.(\d{2})\.(\d{4})$/);
+            return m ? `${m[3]}-${m[2]}-${m[1]}` : null;
+        }
+
+        function csvToClosedRanges(text) {
+            const rows = parseCSV(text).filter(r => r.some(c => c.trim() !== ''));
+            if (rows.length < 2) return [];
+            const ranges = [];
+            rows.slice(1).forEach(r => {
+                const start = parseFlexDate(r[0]);
+                if (!start) return;                                 // строку без даты пропускаем
+                const end = parseFlexDate(r[1]) || start;            // «По дату» пусто — закрыт один день
+                ranges.push({ start: start, end: end < start ? start : end, reason: (r[2] || '').trim() });
+            });
+            return ranges;
+        }
+
+        async function loadClosedDates() {
+            if (!CLOSED_DATES_CSV_URL) return;
+            try {
+                const res = await fetch(CLOSED_DATES_CSV_URL, { cache: 'no-store' });
+                if (!res.ok) throw new Error('HTTP ' + res.status);
+                closedRanges = csvToClosedRanges(await res.text());
+                if (view === 'cart') renderDateChips();   // экран выбора даты уже открыт — обновим сразу
+            } catch (e) {
+                // Таблица недоступна — остаёмся без списка закрытых дат из неё.
+                // Страховка CLOSED_EVERY_YEAR (Новый год) при этом продолжает работать.
+                console.warn('Закрытые даты из таблицы не загрузились:', e);
             }
         }
 
