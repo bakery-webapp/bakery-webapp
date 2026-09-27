@@ -1,8 +1,8 @@
-<!DOCTYPE html>
+а<!DOCTYPE html>
 <html lang="ru">
 <head>
     <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
     <title>La Poste — Каталог</title>
     <script src="https://telegram.org/js/telegram-web-app.js"></script>
     <style>
@@ -13,7 +13,7 @@
             font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, Helvetica, Arial, sans-serif;
             background-color: #ffffff;
             color: #111111;
-            padding: 16px 16px 90px;
+            padding: calc(16px + env(safe-area-inset-top, 0px)) 16px calc(110px + env(safe-area-inset-bottom, 0px));
             -webkit-tap-highlight-color: transparent;
             max-width: 480px;
             margin: 0 auto;
