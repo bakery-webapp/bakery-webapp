@@ -226,6 +226,7 @@
         <div class="section-title">Ваши данные</div>
         <input type="text" id="custName" placeholder="Имя" maxlength="60" autocomplete="name">
         <input type="tel" id="custPhone" placeholder="Телефон, например +7 999 123-45-67" maxlength="25" autocomplete="tel">
+        <div class="hint">Телефон нужен, только чтобы связаться с вами по заказу, если не получится написать в Telegram.</div>
 
         <div class="section-title">Комментарий к заказу</div>
         <textarea id="comment" maxlength="300" placeholder="Необязательно"></textarea>
@@ -233,6 +234,11 @@
         <label class="consent" id="consentBox">
             <input type="checkbox" id="consent">
             <span id="consentText"></span>
+        </label>
+
+        <label class="consent" id="pdConsentBox">
+            <input type="checkbox" id="pdConsent">
+            <span id="pdConsentText"></span>
         </label>
 
         <div class="total-row"><span>Итого</span><span id="cartTotal">0 ₽</span></div>
@@ -288,6 +294,15 @@
         // ЧЕРНОВИК: перед запуском согласуйте формулировку (см. вопрос про юридическую часть).
         const TERMS_TEXT = 'Заказ хранится до закрытия точки в день выдачи. Не забранный вовремя заказ возврату не подлежит. Отменить заказ можно до 18:00 накануне даты выдачи.';
 
+        // Согласие на обработку персональных данных (отдельная галочка).
+        // CONSENT_VERSION уходит боту вместе с заказом и сохраняется в базе. МЕНЯЙТЕ версию каждый раз,
+        // когда меняется текст согласия/политики (например '2026-10-v2'), чтобы было видно, с какой редакцией согласился клиент.
+        const CONSENT_VERSION = '2026-10-v1';
+        // Адреса страниц с документами (положите consent.html и privacy.html рядом с index.html и впишите сюда).
+        // Пока пусто — ссылки не показываются.
+        const CONSENT_URL = '';
+        const PRIVACY_URL = '';
+
         // Ссылка на опубликованный лист «Каталог» из Google Таблицы (формат CSV).
         // Пока пусто — используется встроенный список товаров ниже.
         const CATALOG_CSV_URL = 'https://docs.google.com/spreadsheets/d/e/2PACX-1vQmPzBPA8d01jVR0QjjhOvycvoGejtdK1OGapI9oabPXwwKgVkdx3J4SUSSJG17Dh5C2eB1FhAllror/pub?gid=0&single=true&output=csv';
@@ -326,6 +341,10 @@
 
         function init() {
             document.getElementById('consentText').textContent = 'Я согласен с условиями. ' + TERMS_TEXT;
+            let pd = 'Даю согласие на обработку моих персональных данных (имя, телефон, Telegram ID) для оформления и выдачи заказа.';
+            if (CONSENT_URL) pd += ` <a href="${CONSENT_URL}" target="_blank" rel="noopener">Текст согласия</a>.`;
+            if (PRIVACY_URL) pd += ` <a href="${PRIVACY_URL}" target="_blank" rel="noopener">Политика обработки данных</a>.`;
+            document.getElementById('pdConsentText').innerHTML = pd;
             loadProfile();
             document.querySelectorAll('.contact-box').forEach(el => {
                 el.innerHTML = `Вопросы по заказу:<br>
@@ -752,6 +771,7 @@
             const nameEl = document.getElementById('custName');
             const phoneEl = document.getElementById('custPhone');
             const consentEl = document.getElementById('consent');
+            const pdEl = document.getElementById('pdConsent');
             const name = nameEl.value.trim();
             const phone = phoneEl.value.trim();
             const digits = phone.replace(/\D/g, '');
@@ -760,8 +780,9 @@
             nameEl.classList.toggle('invalid', !nameOk);
             phoneEl.classList.toggle('invalid', !phoneOk);
             document.getElementById('consentBox').classList.toggle('invalid', !consentEl.checked);
-            if (!nameOk || !phoneOk || !consentEl.checked) {
-                notify('Укажите имя и телефон и подтвердите условия заказа.');
+            document.getElementById('pdConsentBox').classList.toggle('invalid', !pdEl.checked);
+            if (!nameOk || !phoneOk || !consentEl.checked || !pdEl.checked) {
+                notify('Укажите имя и телефон и поставьте обе галочки: условия заказа и согласие на обработку персональных данных.');
                 return;
             }
 
@@ -780,6 +801,7 @@
                 name: name,
                 phone: phone,
                 comment: document.getElementById('comment').value.trim().slice(0, 300),
+                consent: CONSENT_VERSION,
                 items: items
             };
             const data = JSON.stringify(payload);
