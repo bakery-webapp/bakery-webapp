@@ -260,6 +260,12 @@
         tg.MainButton.color = '#1a1a1a';
         tg.MainButton.textColor = '#ffffff';
 
+        // Всегда светлое оформление: шапка, фон и нижняя панель Telegram — белые,
+        // независимо от тёмной темы у клиента. try/catch — чтобы старые версии Telegram не ломали страницу.
+        try { tg.setHeaderColor('#ffffff'); } catch (e) {}
+        try { tg.setBackgroundColor('#ffffff'); } catch (e) {}
+        try { tg.setBottomBarColor('#ffffff'); } catch (e) {}
+
         // true, только если страница открыта внутри Telegram
         const inTelegram = !!(tg.platform && tg.platform !== 'unknown');
 
