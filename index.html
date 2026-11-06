@@ -297,11 +297,14 @@
         // Согласие на обработку персональных данных (отдельная галочка).
         // CONSENT_VERSION уходит боту вместе с заказом и сохраняется в базе. МЕНЯЙТЕ версию каждый раз,
         // когда меняется текст согласия/политики (например '2026-10-v2'), чтобы было видно, с какой редакцией согласился клиент.
-        const CONSENT_VERSION = '2026-10-v1';
+        const CONSENT_VERSION = '2026-11-v1';
         // Адреса страниц с документами (положите consent.html и privacy.html рядом с index.html и впишите сюда).
         // Пока пусто — ссылки не показываются.
-        const CONSENT_URL = '';
+        const CONSENT_URL = 'https://bakery-webapp.github.io/bakery-webapp/consent.html';
         const PRIVACY_URL = '';
+        // Публичная оферта: когда загрузите offer.html рядом с index.html, впишите сюда адрес
+        // (https://bakery-webapp.github.io/bakery-webapp/offer.html). Пока пусто — ссылка не показывается.
+        const OFFER_URL = '';
 
         // Ссылка на опубликованный лист «Каталог» из Google Таблицы (формат CSV).
         // Пока пусто — используется встроенный список товаров ниже.
@@ -340,7 +343,9 @@
         let openedId = null;              // id товара, открытого в окне
 
         function init() {
-            document.getElementById('consentText').textContent = 'Я согласен с условиями. ' + TERMS_TEXT;
+            let terms = 'Я согласен с условиями. ' + TERMS_TEXT;
+            if (OFFER_URL) terms += ` <a href="${OFFER_URL}" target="_blank" rel="noopener">Публичная оферта</a>.`;
+            document.getElementById('consentText').innerHTML = terms;
             let pd = 'Даю согласие на обработку моих персональных данных (имя, телефон, Telegram ID) для оформления и выдачи заказа.';
             if (CONSENT_URL) pd += ` <a href="${CONSENT_URL}" target="_blank" rel="noopener">Текст согласия</a>.`;
             if (PRIVACY_URL) pd += ` <a href="${PRIVACY_URL}" target="_blank" rel="noopener">Политика обработки данных</a>.`;
@@ -349,7 +354,8 @@
             document.querySelectorAll('.contact-box').forEach(el => {
                 el.innerHTML = `Вопросы по заказу:<br>
                     <a href="https://t.me/${CONTACT_TG}" onclick="openTg(event)">@${CONTACT_TG}</a> ·
-                    <a href="tel:${CONTACT_PHONE_HREF}">${CONTACT_PHONE}</a>`;
+                    <a href="tel:${CONTACT_PHONE_HREF}">${CONTACT_PHONE}</a><br><br>
+                    Продавец: ИП Погарская Татьяна Александровна, ИНН 773006701940, ОГРНИП 322774600116172`;
             });
             renderCategories();
             renderAllProducts();
